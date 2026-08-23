@@ -1,0 +1,10 @@
+    FROM winlogbeat-*
+    | WHERE event.code IN ("4656", "4661", "4658") 
+        AND winlog.event_data.ObjectServer == "Security Account Manager"
+        AND (winlog.event_data.AccessMask == "0xf003f" OR winlog.event_data.AccessMask == "0xf01ff" OR event.code == "4658")
+    | STATS 
+        event_codes = VALUES(event.code),
+        masks = VALUES(winlog.event_data.AccessMask),
+        distinct_codes = COUNT_DISTINCT(event.code)
+      BY winlog.event_data.HandleId, host.ip
+    | WHERE distinct_codes == 3
