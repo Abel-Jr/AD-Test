@@ -35,3 +35,6 @@ Kerbrute exploits the fact that Kerberos returns different error codes for valid
 - go build
 - ./kerbrute -h
 - ./kerbrute userenum --dc 192.168.56.102 -d blueteamlab.local /usr/share/seclists/Usernames/top-usernames-shortlist.txt 
+
+GetUserSPN de la suite impacket 
+- impacket-GetUserSPNs blueteamlab.local/Juliette:Password1 -dc-ip 192.168.56.102 -request
