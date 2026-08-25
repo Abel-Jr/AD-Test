@@ -38,3 +38,7 @@ Kerbrute exploits the fact that Kerberos returns different error codes for valid
 
 GetUserSPN de la suite impacket 
 - impacket-GetUserSPNs blueteamlab.local/Juliette:Password1 -dc-ip 192.168.56.102 -request
+
+GetNPUsers de la suite impacket 
+- impacket-GetUserSPNs blueteamlab.local/Juliette:Password1 -dc-ip 192.168.56.102 -request
+
