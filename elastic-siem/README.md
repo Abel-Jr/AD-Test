@@ -1,21 +1,28 @@
-File configuration for the elk siem
-I enabled xpack security in order to use the Detection engine on the siem.
-In that matter i'll be able to edit detection rules.
+SIEM Setup (ELK)
 
-Launched docker with : 
-- sudo docker-compose up -d
+I'm running the ELK stack for log collection and detection. Enabled X-Pack security specifically so I could use the Detection Engine in Kibana and write/edit detection rules against the data coming from the AD lab.
 
-Turn it down with :
-- sudo docker-compose down
+Running it
 
-Restart kibana service :
-- sudo docker-compose restart kibana
+Start the stack:
+sudo docker-compose up -d
 
-Check logs : 
-- sudo docker-compose logs -f kibana
+Stop it:
+sudo docker-compose down
 
-If you encoutered an error, it might be related to a default password synchronization.
-To reset password manually :
-- sudo docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u kibana_system -i
+Restart just Kibana:
+sudo docker-compose restart kibana
 
-As i'm working on localhost usage, the keys section are not relevant
+Check Kibana logs:
+sudo docker-compose logs -f kibana
+
+Common issue: password sync
+
+If something's not working, it's often related to the default passwords not syncing properly between Elasticsearch and Kibana. Fix it by resetting the kibana_system password manually:
+sudo docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u kibana_system -i
+
+Then update the password in your .env / docker-compose.yml accordingly and restart Kibana.
+
+Note on TLS/keys
+
+Since everything here runs on localhost, I'm not bothering with the certificate/keys setup - not relevant for a local lab like this.
