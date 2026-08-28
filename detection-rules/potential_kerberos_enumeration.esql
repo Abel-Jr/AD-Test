@@ -1,0 +1,8 @@
+FROM winlogbeat-*
+| WHERE event.code == "4768" AND winlog.event_data.Status == "0x6"
+| STATS
+    distinct_users = COUNT_DISTINCT(winlog.event_data.TargetUserName),
+    total_attempts = COUNT(*)
+    BY source.ip, bucket = BUCKET(@timestamp, 10 minute)
+| WHERE distinct_users >= 10
+| SORT total_attempts DESC
