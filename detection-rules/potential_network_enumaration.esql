@@ -1,4 +1,0 @@
-FROM winlogbeat-*
-| WHERE event.code IN ("5140","5145")
-| STATS distinct_accounts = COUNT_DISTINCT(winlog.event_data.ShareName) BY host.ip, winlog.event_data.SubjectUserName
-| WHERE distinct_accounts >= 3

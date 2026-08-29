@@ -1,0 +1,27 @@
+name: "Potential Network Share Enumeration"
+description: >
+  Detects a network share enumeration attempt through Event IDs 5140 and 5145 (network share access).
+
+  A user accessing at least 3 distinct shares from the same machine is considered 
+  suspicious. This technique is used by tools such as CrackMapExec, smbclient, or 
+  enum4linux to map accessible resources on the network.
+
+author: "Abel-Jr"
+severity: low
+risk_score: 35
+mitre:
+  - technique: T1135
+    tactic: TA0007
+    name: "Network Share Discovery"
+index:
+  - winlogbeat-*
+interval: 5m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE event.code IN ("5140", "5145")
+  | STATS
+      distinct_shares = COUNT_DISTINCT(winlog.event_data.ShareName)
+    BY host.ip,
+       winlog.event_data.SubjectUserName
+  | WHERE distinct_shares >= 3
