@@ -20,7 +20,7 @@ mitre:
     name: "System Services: Service Execution"
 index:
   - winlogbeat-*
-interval: 1m
+interval: 25m
 language: esql
 query: |
   FROM winlogbeat-*
