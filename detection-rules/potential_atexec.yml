@@ -1,0 +1,44 @@
+name: "Potential ATExec Execution"
+description: >
+  Detects the use of atexec.py through the near-immediate creation and deletion of a scheduled task with a random 8-character name, 
+  correlated with access to ADMIN$\Temp on the same victim machine within a one-minute window.
+author: "Abel-Jr"
+severity: critical
+risk_score: 90
+mitre:
+  - technique: T1053.005
+    tactic: TA0002
+    name: "Scheduled Task/Job: Scheduled Task"
+  - technique: T1021.002
+    tactic: TA0008
+    name: "Remote Services: SMB/Windows Admin Shares"
+index:
+  - winlogbeat-*
+interval: 5m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE (
+      (event.code IN ("4698", "4699") AND winlog.event_data.TaskName RLIKE "\\\\[a-zA-Z0-9]{8}")
+      OR
+      (event.code == "5145" AND winlog.event_data.RelativeTargetName RLIKE ".*Temp.*[a-zA-Z0-9]{8}\\.tmp")
+    )
+    AND winlog.event_data.SubjectUserName != "SYSTEM"
+  | EVAL task_id = CASE(
+      event.code IN ("4698", "4699"),
+      SUBSTRING(winlog.event_data.TaskName, 2),
+      SUBSTRING(winlog.event_data.RelativeTargetName, LENGTH(winlog.event_data.RelativeTargetName) - 11, 8)
+    )
+  | STATS
+      unique_events = COUNT_DISTINCT(event.code),
+      unique_tasks  = COUNT_DISTINCT(task_id),
+      events_list   = VALUES(event.code),
+      task_name     = VALUES(task_id),
+      account       = VALUES(winlog.event_data.SubjectUserName),
+      first_seen    = MIN(@timestamp),
+      last_seen     = MAX(@timestamp)
+    BY winlog.event_data.SubjectUserName,
+       winlog.computer_name,
+       bucket = BUCKET(@timestamp, 1 minute)
+  | WHERE unique_events == 3 AND unique_tasks == 1
+  | SORT last_seen DESC
