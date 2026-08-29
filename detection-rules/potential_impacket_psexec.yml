@@ -1,0 +1,45 @@
+name: "Potential Impacket PSExec Execution"
+description: >
+  
+  Detects the use of impacket-psexec through the correlation of three characteristic SMB accesses 
+  within the same session: a randomly named binary being dropped into ADMIN$, 
+  access to the svcctl named pipe (Service Control Manager), and access to the RemCom_communicaton 
+  named pipe — a signature unique to impacket-psexec.
+
+  Correlation using the same SubjectLogonId within a one-minute window ensures that all three elements belong to the same operation.
+
+author: "Abel-Jr"
+severity: critical
+risk_score: 90
+mitre:
+  - technique: T1021.002
+    tactic: TA0008
+    name: "Remote Services: SMB/Windows Admin Shares"
+  - technique: T1569.002
+    tactic: TA0002
+    name: "System Services: Service Execution"
+index:
+  - winlogbeat-*
+interval: 1m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE event.code == "5145"
+    AND winlog.event_data.SubjectUserName != "SYSTEM"
+    AND (
+      winlog.event_data.RelativeTargetName RLIKE "[a-zA-Z0-9]{8}\\.exe"
+      OR winlog.event_data.RelativeTargetName == "svcctl"
+      OR winlog.event_data.RelativeTargetName == "RemCom_communicaton"
+    )
+  | STATS
+      unique_targets = COUNT_DISTINCT(winlog.event_data.RelativeTargetName),
+      targets        = VALUES(winlog.event_data.RelativeTargetName),
+      account        = VALUES(winlog.event_data.SubjectUserName),
+      source_ip      = VALUES(source.ip),
+      first_seen     = MIN(@timestamp),
+      last_seen      = MAX(@timestamp)
+    BY winlog.event_data.SubjectLogonId,
+       winlog.computer_name,
+       bucket = BUCKET(@timestamp, 1 minute)
+  | WHERE unique_targets == 3
+  | SORT last_seen DESC
