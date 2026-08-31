@@ -53,4 +53,7 @@ PSExec tool
 
 BloodHound
 - bloodhound-python -u 'Juliette' -p 'Password1' -d blueteamlab.local -dc dc1.blueteamlab.local -ns 192.168.56.102 -c All 
-    This will make a lot of noise given the collect method
+    All will get get complete data (sessions, local real admins) but too noisy can be detected to easily 
+
+-  bloodhound-python -u 'Juliette' -p 'Password1' -d blueteamlab.local -dc dc1.blueteamlab.local -ns 192.168.56.102 -c DConly 
+    
