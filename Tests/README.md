@@ -4,7 +4,7 @@ Used diferent echniques to find new detection rules :
 About tools :
 - kerbrute
 - nxc
-- sharphound
+- bloodhound-python
 
 nxc is an assment and exploitation tool.
 First i ran an smb enumeration : 
@@ -50,3 +50,7 @@ ATExec tool to execute a command remotely
 PSExec tool 
 - impacket-psexec blueteamlab.local/Administrateur:#@4458654##Tete@192.168.56.30 "whoami"
 - impacket-psexec blueteamlab.local/Administrateur:#@4458654##Tete@192.168.56.30 "ipconfig"
+
+BloodHound
+- bloodhound-python -u 'Juliette' -p 'Password1' -d blueteamlab.local -dc dc1.blueteamlab.local -ns 192.168.56.102 -c All 
+    This will make a lot of noise given the collect method
