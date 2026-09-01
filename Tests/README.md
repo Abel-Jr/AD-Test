@@ -56,4 +56,5 @@ BloodHound
     All will get get complete data (sessions, local real admins) but too noisy can be detected to easily 
 
 -  bloodhound-python -u 'Juliette' -p 'Password1' -d blueteamlab.local -dc dc1.blueteamlab.local -ns 192.168.56.102 -c DConly 
+    Complete ACL, group, and trust data, but no active session data or actual local administrator group membership (this information is either inferred differently or unavailable).
     
