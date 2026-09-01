@@ -1,0 +1,80 @@
+name: "Potential BloodHound / AD Enumeration via SAM"
+description: >
+  Detects an Active Directory enumeration attempt via SAM/SAMR pipes, characteristic of tools such as BloodHound, 
+  CrackMapExec, or Impacket.
+
+  The rule correlates four distinct event types within the same session: IPC$ access (5140), samr pipe access (5145),  
+  SAM handle opening (4661), and enumeration of sensitive local groups (4799) targeting the following SIDs:
+
+  S-1-5-32-544 (Administrators)
+  S-1-5-32-555 (Remote Desktop Users)
+  S-1-5-32-562 (Distributed COM Users)
+  S-1-5-32-580 (Network Configuration Operators)
+
+  An alert is triggered only if all four event types are present within the same session and a 5-minute window.
+
+author: "Abel-Jr"
+severity: high
+risk_score: 73
+mitre:
+  - technique: T1069.001
+    tactic: TA0007
+    name: "Permission Groups Discovery: Local Groups"
+  - technique: T1087.002
+    tactic: TA0007
+    name: "Account Discovery: Domain Account"
+index:
+  - winlogbeat-*
+interval: 20m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE (
+    (event.code == "4624"
+      AND winlog.event_data.LogonType == "3"
+      AND winlog.event_data.AuthenticationPackageName == "Kerberos")
+    OR
+    (event.code == "4672")
+    OR
+    (event.code == "5140"
+      AND winlog.event_data.ShareName == "\\\\*\\SYSVOL")
+    OR
+    (event.code == "5145"
+      AND winlog.event_data.ShareName == "\\\\*\\SYSVOL"
+      AND winlog.event_data.AccessMask == "0x120089")
+  )
+  | EVAL session_id = CASE(
+    event.code == "4624", winlog.event_data.TargetLogonId,
+    winlog.event_data.SubjectLogonId
+  )
+  | MV_EXPAND winlog.event_data.PrivilegeList
+  | EVAL has_delegation_privilege = CASE(
+    event.code == "4672"
+      AND winlog.event_data.PrivilegeList == "SeEnableDelegationPrivilege",
+    1,
+    0
+  )
+  | MV_EXPAND host.ip
+  | EVAL self_connect = TO_INTEGER(host.ip == source.ip)
+  | EVAL guid = MV_SLICE(
+    SPLIT(winlog.event_data.RelativeTargetName, "\\"),
+    2,
+    2
+  )
+  | STATS
+    unique_events = COUNT_DISTINCT(event.code),
+    distinct_policies = COUNT_DISTINCT(guid),
+    policies = VALUES(guid),
+    account = VALUES(winlog.event_data.SubjectUserName),
+    self_connect = MAX(self_connect),
+    delegation_privilege = MAX(has_delegation_privilege),
+    first_seen = MIN(@timestamp),
+    last_seen = MAX(@timestamp)
+  BY session_id,
+     winlog.computer_name,
+     bucket = BUCKET(@timestamp, 5 minute)
+  | WHERE unique_events == 4
+    AND distinct_policies >= 2
+    AND self_connect == 1
+    AND delegation_privilege == 1
+  | SORT last_seen DESC
