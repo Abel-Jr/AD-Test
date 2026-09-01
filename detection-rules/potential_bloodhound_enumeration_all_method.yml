@@ -1,4 +1,4 @@
-name: "Potential BloodHound / AD Enumeration via SAM"
+name: "Potential BloodHound / AD Enumeration with All Method"
 description: >
   Detects an Active Directory enumeration attempt via SAM/SAMR pipes, characteristic of tools such as BloodHound, 
   CrackMapExec, or Impacket.

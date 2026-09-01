@@ -1,17 +1,12 @@
-name: "Potential BloodHound / AD Enumeration via SAM"
+name: "Potential BloodHound / AD Enumeration with Domain Controller Only Method"
 description: >
-  Detects an Active Directory enumeration attempt via SAM/SAMR pipes, characteristic of tools such as BloodHound, 
-  CrackMapExec, or Impacket.
-
-  The rule correlates four distinct event types within the same session: IPC$ access (5140), samr pipe access (5145),  
-  SAM handle opening (4661), and enumeration of sensitive local groups (4799) targeting the following SIDs:
-
-  S-1-5-32-544 (Administrators)
-  S-1-5-32-555 (Remote Desktop Users)
-  S-1-5-32-562 (Distributed COM Users)
-  S-1-5-32-580 (Network Configuration Operators)
-
-  An alert is triggered only if all four event types are present within the same session and a 5-minute window.
+  Detects suspicious self-authentication activity on a Domain Controller associated with access to SYSVOL and Group Policy files. 
+  The rule correlates a Kerberos network logon (4624), special privilege assignment including SeEnableDelegationPrivilege (4672), 
+  SYSVOL share access (5140), and file-level access to SYSVOL (5145) within the same session and a five-minute window. 
+  
+  It also verifies that the source IP matches one of the Domain Controller's IP addresses and that multiple 
+  Group Policy objects are accessed, helping identify potential anomalous delegation or privilege-related activity on 
+  the Domain Controller.
 
 author: "Abel-Jr"
 severity: high
