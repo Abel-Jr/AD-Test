@@ -14,36 +14,28 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Install AzSentinel module
+      - name: Install required modules
         shell: pwsh
-        run: Install-Module -Name AzSentinel -Force -Scope CurrentUser
-
-#      - name: Verify module installed
-#        shell: pwsh
-#        run: |
-#         Write-Host "--- Modules disponibles nommés AzSentinel ---"
-#        Get-Module -ListAvailable AzSentinel
-#
-#          Write-Host "--- Tentative d'import ---"
-#          Import-Module AzSentinel -Verbose
-#
-#          Write-Host "--- Commandes exposées par le module ---"
-#          Get-Command -Module AzSentinel
+        run: |
+          Install-Module -Name Az.Accounts -Force -Scope CurrentUser
+          Install-Module -Name AzSentinel -Force -Scope CurrentUser
 
       - name: Deploy rules to Sentinel
         shell: pwsh
         run: |
           Import-Module AzSentinel
+          Import-Module Az.Accounts
+
+          $creds = '${{ secrets.AZURE_CREDENTIALS }}' | ConvertFrom-Json
+          $securePassword = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+          $credential = New-Object System.Management.Automation.PSCredential($creds.clientId, $securePassword)
+
+          Connect-AzAccount -ServicePrincipal -Credential $credential -TenantId $creds.tenantId -Subscription $creds.subscriptionId
+
           Get-ChildItem ./detection-rules/sentinel -Filter *.yml | ForEach-Object {
             Write-Host "Deploying rule: $($_.Name)"
             Import-AzSentinelAlertRule `
               -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
-              -SubscriptionId "${{ secrets.AZURE_SUBSCRIPTION_ID }}" `
-              -SettingsFile $_.FullName
+              -SettingsFile $_.FullName `
               -Confirm:$false
           }
