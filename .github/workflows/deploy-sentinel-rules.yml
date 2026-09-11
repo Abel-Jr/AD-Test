@@ -17,6 +17,7 @@ jobs:
       - name: Install required modules
         shell: pwsh
         run: |
+          Install-Module -Name powershell-yaml -Force -Scope CurrentUser
           Install-Module -Name Az.Accounts -Force -Scope CurrentUser
           Install-Module -Name AzSentinel -Force -Scope CurrentUser
 
@@ -25,6 +26,7 @@ jobs:
         run: |
           Import-Module AzSentinel
           Import-Module Az.Accounts
+          Import-Module powershell-yaml
 
           $creds = '${{ secrets.AZURE_CREDENTIALS }}' | ConvertFrom-Json
           $securePassword = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
