@@ -1,0 +1,31 @@
+name: "Potential Kerberos User Enumeration"
+description: >
+  Detects an account enumeration attempt through Event ID 4768 with status 0x6 
+  (KDC_ERR_C_PRINCIPAL_UNKNOWN). The domain controller responds differently 
+  depending on whether the account exists or not, allowing an attacker to enumerate 
+  valid accounts without authentication. At least 10 distinct users from the same IP 
+  address within a 10-minute window is considered suspicious.
+
+  This technique is used by tools such as Kerbrute or enum4linux.
+
+author: "Abel-Jr"
+severity: medium
+risk_score: 47
+mitre:
+  - technique: T1087.002
+    tactic: TA0007
+    name: "Account Discovery: Domain Account"
+
+index:
+  - winlogbeat-*
+interval: 10m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE event.code == "4768" AND winlog.event_data.Status == "0x6"
+  | STATS
+      distinct_users = COUNT_DISTINCT(winlog.event_data.TargetUserName),
+      total_attempts = COUNT(*)
+    BY source.ip, bucket = BUCKET(@timestamp, 10 minute)
+  | WHERE distinct_users >= 10
+  | SORT total_attempts DESC

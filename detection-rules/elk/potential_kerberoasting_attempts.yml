@@ -1,0 +1,34 @@
+name: "Potential Kerberoasting"
+description: >
+  Detects a Kerberoasting attempt through Event ID 4769 (Kerberos TGS service ticket request). R
+  C4 encryption (0x17) is characteristic of a malicious request, as attack tools 
+  often force it to facilitate offline cracking. A user targeting at least 7 distinct SPNs 
+  within 10 minutes is considered suspicious.
+
+  This technique is used by tools such as GetUserSPNs.py from Impacket or Rubeus.
+
+author: "Abel-Jr"
+severity: high
+risk_score: 72
+mitre:
+  - technique: T1558.003
+    tactic: TA0006
+    name: "Steal or Forge Kerberos Tickets: Kerberoasting"
+index:
+  - winlogbeat-*
+interval: 10m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE event.code == "4769"
+      AND winlog.event_data.TicketEncryptionType == "0x17"
+      AND NOT ENDS_WITH(winlog.event_data.ServiceName, "$")
+      AND winlog.event_data.Status == "0x0"
+  | STATS
+      distinct_spns  = COUNT_DISTINCT(winlog.event_data.ServiceName),
+      total_requests = COUNT(*),
+      services       = VALUES(winlog.event_data.ServiceName)
+    BY winlog.event_data.TargetUserName,
+       bucket = BUCKET(@timestamp, 10 minute)
+  | WHERE distinct_spns >= 7
+  | SORT distinct_spns DESC

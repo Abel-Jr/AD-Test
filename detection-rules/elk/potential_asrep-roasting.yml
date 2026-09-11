@@ -1,0 +1,31 @@
+name: "Potential AS-REP Roasting"
+description: >
+  Detects an AS-REP Roasting attempt through the enumeration of Kerberos accounts 
+  without pre-authentication (PreAuthType = 0). An attacker targeting at least 7 distinct 
+  accounts from the same IP address within a 10-minute window is considered 
+  suspicious.
+  
+  This technique is used by tools such as GetNPUsers.py from Impacket or Rubeus.
+
+author: "Abel-Jr"
+severity: medium
+risk_score: 53
+mitre:
+  - technique: T1558.004
+    tactic: TA0006
+    name: "Steal or Forge Kerberos Tickets: AS-REP Roasting"
+index:
+  - winlogbeat-*
+interval: 10m
+language: esql
+query: |
+  FROM winlogbeat-*
+  | WHERE event.code == "4768"
+      AND (winlog.event_data.PreAuthType == "0" OR winlog.event_data.PreAuthType IS NULL)
+      AND NOT ENDS_WITH(winlog.event_data.TargetUserName, "$")
+  | STATS
+      distinct_targets = COUNT_DISTINCT(winlog.event_data.TargetUserName),
+      total_requests   = COUNT(*)
+      BY source.ip, bucket = BUCKET(@timestamp, 10 minute)
+  | WHERE distinct_targets >= 7
+  | SORT distinct_targets DESC
