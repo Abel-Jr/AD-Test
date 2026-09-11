@@ -1,0 +1,92 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: 3859dc52-13ea-4224-ac27-3076ac6bc973
+name: "Kerberoasting attempts"
+description: |
+  'Detects a Kerberoasting attempt through Event ID 4769 (Kerberos TGS service ticket request). R
+  C4 encryption (0x17) is characteristic of a malicious request, as attack tools 
+  often force it to facilitate offline cracking. A user targeting at least 7 distinct SPNs 
+  within 10 minutes is considered suspicious.
+
+  This technique is used by tools such as GetUserSPNs.py from Impacket or Rubeus.'
+severity: High
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 15 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT15M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - CredentialAccess
+relevantTechniques:
+  - T1558.003
+
+# KQL query - IpAddress is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  SecurityEvent
+  | where EventID == 4769 //and not(ServiceName endswith "$")
+  | extend EventDataStr = tostring(EventData)
+  | extend TicketEncryptionType = extract(@'<Data Name="TicketEncryptionType">(.*?)</Data>', 1, EventDataStr)
+  | extend Status              = extract(@'<Data Name="Status">(.*?)</Data>', 1, EventDataStr)
+  | extend ServiceName         = extract(@'<Data Name="ServiceName">(.*?)</Data>', 1, EventDataStr)
+  | extend TargetUserName      = extract(@'<Data Name="TargetUserName">(.*?)</Data>', 1, EventDataStr)
+  | extend IpAddress           = extract(@'<Data Name="IpAddress">(.*?)</Data>', 1, EventDataStr)
+  | extend TicketOptions       = extract(@'<Data Name="TicketOptions">(.*?)</Data>', 1, EventDataStr)
+  | where not(ServiceName endswith "$") and TicketEncryptionType has_any ("0x17","0xffffffff","0xFFFFFFFF")
+  | summarize 
+     DistinctServices = dcount(ServiceName),
+     Service = make_set(ServiceName,8)
+     by IpAddress, TargetUserName, TicketEncryptionType, bin(TimeGenerated, 15m)
+  | where DistinctServices >= 7
+
+# Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
+entityMappings:
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: IpAddress
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: TargetUserName
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  DistinctServicesCount: DistinctServices
+  TargetedServices: Service
+  TicketEncryption: TicketEncryptionType
+
+# One alert per matching row (per IP), not one alert bundling all IPs together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "Kerberoasting attempt detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} requested multiple distinct service tickets in 10 minutes"
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - IP
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []

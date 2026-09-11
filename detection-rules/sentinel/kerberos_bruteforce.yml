@@ -1,15 +1,9 @@
 # Unique rule ID - generate with `uuidgen`, never reuse across rules
-id: 4b8e2f61-9d3a-47c5-8e12-6f9a1d4b7c85
-name: "Password Spraying attempts"
+id: 8be1f93a-d707-46dd-91b6-a7dc5f881bf0
+name: "Kerberos Bruteforce attempts"
 description: |
-  'Detects a single IP attempting authentication against a large number of
-  distinct accounts in a short window (password spraying) targetting smb, ldap, ntlm protocol, via event 4625.
-  kerberos should be logged as event 4771.
-  
-  A high number of distinct accounts targeted from the same machine is characteristic 
-  of a password spray attack — the attacker tests the same password against multiple 
-  accounts to avoid account lockout. The threshold is set at 25 distinct accounts (which won't be the case on a real environment).'
-severity: High
+  'Detects multiple failed authentication attempts on a single account via event 4771.'
+severity: Low
 status: Available
 enabled: true
 
@@ -19,30 +13,32 @@ requiredDataConnectors:
     dataTypes:
       - SecurityEvent
 
-# Runs every 10 minutes, analyzing the last 15 minutes of data
+# Runs every 10 minutes, analyzing the last 10 minutes of data
 # (matches the bin(TimeGenerated, 10m) used in the query)
 queryFrequency: PT10M
-queryPeriod: PT15M
+queryPeriod: PT10M
 triggerOperator: gt
 triggerThreshold: 0
 
 tactics:
   - CredentialAccess
 relevantTechniques:
-  - T1110.003
+  - T1110.001
 
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID == 4625
-  | summarize
-      FailedAttempts = count(),
-      DistinctUsers = dcount(TargetUserName),
-      Users = make_set(TargetUserName, 20)
-      by IpAddress, bin(TimeGenerated, 10m)
-  | where DistinctUsers >= 25
-  | order by DistinctUsers desc
+  | where EventID == 4771
+  | extend EventDataStr = tostring(EventData)
+  | extend Status              = extract(@'<Data Name="Status">(.*?)</Data>', 1, EventDataStr)
+  | extend TargetUserName      = extract(@'<Data Name="TargetUserName">(.*?)</Data>', 1, EventDataStr)
+  | extend IpAddress           = extract(@'<Data Name="IpAddress">(.*?)</Data>', 1, EventDataStr)
+  | extend PreAuthType           = extract(@'<Data Name="PreAuthType">(.*?)</Data>', 1, EventDataStr)
+  | summarize 
+     Failure= count()
+     by IpAddress, Status, TargetUserName, PreAuthType, bin(TimeGenerated, 15m)
+  | where Failure >= 7
 
 # Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
 entityMappings:
@@ -50,12 +46,15 @@ entityMappings:
     fieldMappings:
       - identifier: Address
         columnName: IpAddress
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: TargetUserName
 
 # Extra context shown in the alert, not tied to an entity
 customDetails:
-  FailedAttemptsCount: FailedAttempts
-  DistinctUsersCount: DistinctUsers
-  TargetedUsers: Users
+  StatusCode: Status
+  PreAuth: PreAuthType
 
 # One alert per matching row (per IP), not one alert bundling all IPs together
 eventGroupingSettings:
@@ -63,8 +62,8 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Password Spraying détecté depuis {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} tried to authenticate to multiple distinct accoounts in 10 minutes"
+  alertDisplayNameFormat: "Bruteforce attempts targetting kerberos protocol detcted from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} tried to authenticate to many times in 10 minutes"
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
@@ -76,7 +75,7 @@ incidentConfiguration:
     lookbackDuration: PT5H
     matchingMethod: Selected
     groupByEntities:
-      - IP
+      - Account
     groupByAlertDetails: []
 
 suppressionDuration: PT1H

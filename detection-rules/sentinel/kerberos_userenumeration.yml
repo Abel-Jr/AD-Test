@@ -1,15 +1,15 @@
 # Unique rule ID - generate with `uuidgen`, never reuse across rules
-id: 4b8e2f61-9d3a-47c5-8e12-6f9a1d4b7c85
-name: "Password Spraying attempts"
+id: 5276f0da-0e92-4eee-81df-6f9831f12d8a
+name: "Kerberos enumeration accounts"
 description: |
-  'Detects a single IP attempting authentication against a large number of
-  distinct accounts in a short window (password spraying) targetting smb, ldap, ntlm protocol, via event 4625.
-  kerberos should be logged as event 4771.
-  
-  A high number of distinct accounts targeted from the same machine is characteristic 
-  of a password spray attack — the attacker tests the same password against multiple 
-  accounts to avoid account lockout. The threshold is set at 25 distinct accounts (which won't be the case on a real environment).'
-severity: High
+  'Detects an account enumeration attempt through Event ID 4768 with status 0x6 
+  (KDC_ERR_C_PRINCIPAL_UNKNOWN). The domain controller responds differently 
+  depending on whether the account exists or not, allowing an attacker to enumerate 
+  valid accounts without authentication. At least 5 distinct users from the same IP 
+  address within a 10-minute window is considered suspicious.
+
+  This technique is used by tools such as Kerbrute or enum4linux.'
+severity: Medium
 status: Available
 enabled: true
 
@@ -19,30 +19,28 @@ requiredDataConnectors:
     dataTypes:
       - SecurityEvent
 
-# Runs every 10 minutes, analyzing the last 15 minutes of data
+# Runs every 15 minutes, analyzing the last 20 minutes of data
 # (matches the bin(TimeGenerated, 10m) used in the query)
-queryFrequency: PT10M
-queryPeriod: PT15M
+queryFrequency: PT15M
+queryPeriod: PT20M
 triggerOperator: gt
 triggerThreshold: 0
 
 tactics:
-  - CredentialAccess
+  - Discovery
 relevantTechniques:
-  - T1110.003
+  - T1087.002
 
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID == 4625
-  | summarize
-      FailedAttempts = count(),
-      DistinctUsers = dcount(TargetUserName),
-      Users = make_set(TargetUserName, 20)
-      by IpAddress, bin(TimeGenerated, 10m)
-  | where DistinctUsers >= 25
-  | order by DistinctUsers desc
+  | where EventID == 4768  and Status == '0x6' and not(TargetUserName endswith "$")
+  | summarize 
+     DistinctUsers = dcount(TargetUserName),
+     Users = make_set(TargetUserName,8)
+     by IpAddress, bin(TimeGenerated, 15m)
+  | where DistinctUsers >= 5
 
 # Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
 entityMappings:
@@ -53,7 +51,6 @@ entityMappings:
 
 # Extra context shown in the alert, not tied to an entity
 customDetails:
-  FailedAttemptsCount: FailedAttempts
   DistinctUsersCount: DistinctUsers
   TargetedUsers: Users
 
@@ -63,8 +60,8 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Password Spraying détecté depuis {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} tried to authenticate to multiple distinct accoounts in 10 minutes"
+  alertDisplayNameFormat: "Kerberos enumeration detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} requested multiple tgt tickets for multiple unknown users in 10 minutes"
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
