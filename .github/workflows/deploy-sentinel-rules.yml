@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         run: |
           Import-Module AzSentinel
-          Get-ChildItem ./detection/sentinel -Filter *.yml | ForEach-Object {
+          Get-ChildItem ./detection-rules/sentinel -Filter *.yml | ForEach-Object {
             Write-Host "Deploying rule: $($_.Name)"
             Set-AzSentinelAlertRule `
               -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
