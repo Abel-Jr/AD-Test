@@ -23,6 +23,18 @@ jobs:
         shell: pwsh
         run: Install-Module -Name AzSentinel -Force -Scope CurrentUser
 
+      - name: Verify module installed
+        shell: pwsh
+        run: |
+          Write-Host "--- Modules disponibles nommés AzSentinel ---"
+          Get-Module -ListAvailable AzSentinel
+
+          Write-Host "--- Tentative d'import ---"
+          Import-Module AzSentinel -Verbose
+
+          Write-Host "--- Commandes exposées par le module ---"
+          Get-Command -Module AzSentinel
+
       - name: Deploy rules to Sentinel
         shell: pwsh
         run: |
