@@ -1,0 +1,110 @@
+# Sentinel rules deployment - config notes
+#
+# How we deploy detection rules from this repo to Sentinel via GitHub Actions.
+# Wrote this down mostly so future-me remembers why half of this is here.
+
+repository_structure:
+  rules_folder: detection-rules/sentinel/          # one .yml file per detection rule
+  workflow_file: .github/workflows/deploy-sentinel-rules.yml
+
+azure_service_principal:
+  name: sentinel-github-deploy
+  type: App Registration (Entra ID) + Enterprise Application
+  role_assigned: Microsoft Sentinel Contributor
+  role_scope: the resource group that has the Sentinel workspace in it
+  auth_method: client secret, not OIDC - tried OIDC first, wasn't worth the hassle for a lab
+
+azure_resource_provider:
+  # on a free trial this isn't always registered by default, worth double checking
+  namespace: Microsoft.SecurityInsights
+  required_state: Registered
+
+github_secrets:
+  # repo settings -> secrets and variables -> actions -> secrets
+  AZURE_CREDENTIALS:
+    what_it_is: JSON blob, this is what Connect-AzAccount reads
+    format: |
+      {
+        "clientId": "...",
+        "clientSecret": "...",
+        "subscriptionId": "...",
+        "tenantId": "..."
+      }
+  AZURE_SUBSCRIPTION_ID:
+    what_it_is: just the subscription ID as a plain string, used separately in the deploy step
+
+github_variables:
+  # same place, but the "variables" tab, not "secrets" - nothing sensitive here
+  SENTINEL_WORKSPACE_NAME:
+    what_it_is: name of the Log Analytics workspace
+    example: law-siem-lab-azure-east2
+  SENTINEL_RESOURCE_GROUP:
+    what_it_is: resource group that workspace lives in
+
+workflow_triggers:
+  push:
+    branches: [main]
+    paths:
+      - detection-rules/sentinel/**
+  workflow_dispatch: {}          # manual "Run workflow" button in the Actions tab
+
+powershell_modules_needed:
+  - name: powershell-yaml
+    why: without it, AzSentinel can't read the .yml files at all - throws "unable to convert yaml file"
+  - name: Az.Accounts
+    why: this is what actually logs PowerShell into Azure, separate from the Azure CLI login step
+  - name: AzSentinel
+    why: community module that wraps the Sentinel REST API so we're not writing raw curl calls
+    cmdlet_we_use: Import-AzSentinelAlertRule
+
+deployment_steps:
+  - step: checkout repo
+    action: actions/checkout@v4
+
+  - step: install the modules above
+    command: |
+      Install-Module -Name powershell-yaml -Force -Scope CurrentUser
+      Install-Module -Name Az.Accounts -Force -Scope CurrentUser
+      Install-Module -Name AzSentinel -Force -Scope CurrentUser
+
+  - step: log in to Azure, PowerShell-side
+    why_this_step_exists: >
+      azure/login@v2 logs in the Azure CLI, but AzSentinel talks to Azure through
+      the Az PowerShell module, which has its own separate session. Without this,
+      you get "No subscription available" even though the CLI login succeeded fine.
+    command: |
+      $creds = '${{ secrets.AZURE_CREDENTIALS }}' | ConvertFrom-Json
+      $securePassword = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+      $credential = New-Object System.Management.Automation.PSCredential($creds.clientId, $securePassword)
+      Connect-AzAccount -ServicePrincipal -Credential $credential -TenantId $creds.tenantId -Subscription $creds.subscriptionId
+
+  - step: loop through the rule files and push each one
+    command: |
+      Get-ChildItem ./detection-rules/sentinel -Filter *.yml | ForEach-Object {
+        Import-AzSentinelAlertRule `
+          -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
+          -SettingsFile $_.FullName `
+          -Confirm:$false
+      }
+
+things_that_broke_along_the_way:
+  # keeping these here so I don't waste another hour re-debugging the same stuff
+  - error: "Failed to fetch federated token from GitHub"
+    what_happened: azure/login@v2 tries OIDC by default if you don't tell it otherwise
+    fix: pass the whole creds JSON via the `creds:` input instead of client-id/client-secret separately
+
+  - error: "Set-AzSentinelAlertRule is not recognized"
+    what_happened: that cmdlet just doesn't exist, I misremembered the module's API
+    fix: it's Import-AzSentinelAlertRule -SettingsFile
+
+  - error: "No subscription available, Please use Connect-AzAccount to login"
+    what_happened: CLI was logged in but Az PowerShell wasn't - two different auth contexts
+    fix: added the explicit Connect-AzAccount -ServicePrincipal call, see above
+
+  - error: "Unable to convert yaml file"
+    what_happened: powershell-yaml wasn't installed, so ConvertFrom-Yaml wasn't available
+    fix: Install-Module -Name powershell-yaml
+
+  - issue: rule deployed fine but sat there Disabled in the Sentinel UI
+    what_happened: forgot `enabled true` in the rule file, defaults to false apparently
+    fix: added enabled true to the yaml
