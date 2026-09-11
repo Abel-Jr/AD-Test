@@ -1,6 +1,5 @@
 name: Deploy Sentinel Rules
 
-# Only trigger when files change in this specific folder, and only on main
 on:
   push:
     branches: [main]
@@ -11,24 +10,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # Pull the repo content onto the runner
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Authenticate to Azure using the service principal (via the 4 secrets)
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Install the PowerShell module that talks to the Sentinel API
       - name: Install AzSentinel module
         shell: pwsh
         run: Install-Module -Name AzSentinel -Force -Scope CurrentUser
 
-      # Loop through every .yml rule file and deploy/update it in Sentinel
       - name: Deploy rules to Sentinel
         shell: pwsh
         run: |
