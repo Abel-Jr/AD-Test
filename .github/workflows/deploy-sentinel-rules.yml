@@ -36,8 +36,18 @@ jobs:
 
           Get-ChildItem ./detection-rules/sentinel -Filter *.yml | ForEach-Object {
             Write-Host "Deploying rule: $($_.Name)"
+            try {
             Import-AzSentinelAlertRule `
               -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
               -SettingsFile $_.FullName `
               -Confirm:$false
+              - ErrorAction Stop
+          } 
+          catch {
+              Write-Host "----- FULL ERROR DETAILS -----"
+              Write-Host $_.Exception.Message
+              Write-Host $_.ScriptStackTrace
+              Write-Host "-------------------------------"
+              throw
+          }
           }
