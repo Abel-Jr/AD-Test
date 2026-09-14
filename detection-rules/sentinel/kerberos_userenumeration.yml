@@ -9,7 +9,7 @@ description: |
   address within a 10-minute window is considered suspicious.
 
   This technique is used by tools such as Kerbrute or enum4linux.'
-severity: Medium
+severity: Low
 status: Available
 enabled: true
 
