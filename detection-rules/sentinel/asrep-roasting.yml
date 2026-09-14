@@ -8,7 +8,7 @@ description: |
   suspicious.
   
   This technique is used by tools such as GetNPUsers.py from Impacket or Rubeus.'
-severity: Medium
+severity: Low
 status: Available
 enabled: true
 
