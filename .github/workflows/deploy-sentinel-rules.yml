@@ -41,7 +41,7 @@ jobs:
               -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
               -SettingsFile $_.FullName `
               -Confirm:$false
-              - ErrorAction Stop
+              -ErrorAction Stop
           } 
           catch {
               Write-Host "----- FULL ERROR DETAILS -----"
