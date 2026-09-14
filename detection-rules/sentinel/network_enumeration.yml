@@ -1,0 +1,81 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: a43f3b12-bc94-44f5-a25e-14bd2b143644
+name: "Potential Network enumeration"
+description: |
+  'Detect enumeration on all shares throough Event ID 5140, 5145 (network share access). 
+  A user accessing at least 3 distinct shares from the same machine is considered suspicious. 
+  This technique is used by tools such as nxc, smbclient, or enum4linux to map accessible resources on the network.'
+severity: Low
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 15 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT15M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - Discovery
+relevantTechniques:
+  - T1135
+
+# KQL query - IpAddress is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  SecurityEvent
+  | where EventID in (5145,5140) and not (SubjectUserName endswith "$")
+  | summarize 
+   share = dcount(ShareName),
+   shares = make_set(ShareName, 5)
+   by IpAddress, SubjectUserName, SubjectLogonId, bin(TimeGenerated, 15m)
+  | where share > 2
+
+# Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
+entityMappings:
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: IpAddress
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: SubjectUserName    
+
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  DistinctShareCount: share
+  TargetedShares: shares
+
+# One alert per matching row (per IP), not one alert bundling all IPs together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "Network enumeration detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} accessed multiple distinct shares in 10 minutes"
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - IP
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []
