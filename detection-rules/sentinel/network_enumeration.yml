@@ -1,14 +1,10 @@
 # Unique rule ID - generate with `uuidgen`, never reuse across rules
-id: 5276f0da-0e92-4eee-81df-6f9831f12d8a
-name: "Kerberos enumeration accounts"
+id: a43f3b12-bc94-44f5-a25e-14bd2b143644
+name: "Potential Network enumeration"
 description: |
-  'Detects an account enumeration attempt through Event ID 4768 with status 0x6 
-  (KDC_ERR_C_PRINCIPAL_UNKNOWN). The domain controller responds differently 
-  depending on whether the account exists or not, allowing an attacker to enumerate 
-  valid accounts without authentication. At least 5 distinct users from the same IP 
-  address within a 10-minute window is considered suspicious.
-
-  This technique is used by tools such as Kerbrute or enum4linux.'
+  'Detect enumeration on all shares throough Event ID 5140, 5145 (network share access). 
+  A user accessing at least 3 distinct shares from the same machine is considered suspicious. 
+  This technique is used by tools such as nxc, smbclient, or enum4linux to map accessible resources on the network.'
 severity: Low
 status: Available
 enabled: true
@@ -29,18 +25,18 @@ triggerThreshold: 0
 tactics:
   - Discovery
 relevantTechniques:
-  - T1087.002
+  - T1135
 
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID == 4768  and Status == '0x6' and not(TargetUserName endswith "$")
+  | where EventID in (5145,5140) and not (SubjectUserName endswith "$")
   | summarize 
-     DistinctUsers = dcount(TargetUserName),
-     Users = make_set(TargetUserName,8)
-     by IpAddress, bin(TimeGenerated, 15m)
-  | where DistinctUsers >= 5
+   share = dcount(ShareName),
+   shares = make_set(ShareName, 5)
+   by IpAddress, SubjectUserName, SubjectLogonId, bin(TimeGenerated, 15m)
+  | where share > 2
 
 # Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
 entityMappings:
@@ -48,11 +44,15 @@ entityMappings:
     fieldMappings:
       - identifier: Address
         columnName: IpAddress
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: SubjectUserName    
 
 # Extra context shown in the alert, not tied to an entity
 customDetails:
-  DistinctUsersCount: DistinctUsers
-  TargetedUsers: Users
+  DistinctShareCount: share
+  TargetedShares: shares
 
 # One alert per matching row (per IP), not one alert bundling all IPs together
 eventGroupingSettings:
@@ -60,8 +60,8 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Kerberos enumeration detected from {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} requested multiple tgt tickets for multiple unknown users in 10 minutes"
+  alertDisplayNameFormat: "Network enumeration detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} accessed multiple distinct shares in 10 minutes"
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
