@@ -82,34 +82,38 @@ def build_body(rule: dict) -> dict:
     """Maps our YAML schema onto the actual Sentinel REST API schema."""
     techniques, sub_techniques = split_techniques(rule.get("relevantTechniques", []))
 
-    return {
-        "kind": "Scheduled",
-        "properties": {
-            "displayName": rule["name"],
-            "description": rule.get("description", ""),
-            "severity": rule["severity"],
-            "enabled": rule.get("enabled", False),
-            "query": rule["query"],
-            "queryFrequency": rule["queryFrequency"],
-            "queryPeriod": rule["queryPeriod"],
-            "triggerOperator": normalize_trigger_operator(rule["triggerOperator"]),
-            "triggerThreshold": rule["triggerThreshold"],
-            "suppressionDuration": rule.get("suppressionDuration", "PT1H"),
-            "suppressionEnabled": rule.get("suppressionEnabled", False),
-            "tactics": rule.get("tactics", []),
-            "techniques": techniques,
-            "subTechniques": sub_techniques,
-            "entityMappings": rule.get("entityMappings", []),
-            "customDetails": rule.get("customDetails", {}),
-            "alertDetailsOverride": rule.get("alertDetailsOverride", {}),
-            "eventGroupingSettings": rule.get(
-                "eventGroupingSettings", {"aggregationKind": "SingleAlert"}
-            ),
-            "incidentConfiguration": rule.get(
-                "incidentConfiguration", {"createIncident": True}
-            ),
-        },
+    properties = {
+        "displayName": rule["name"],
+        "description": rule.get("description", ""),
+        "severity": rule["severity"],
+        "enabled": rule.get("enabled", False),
+        "query": rule["query"],
+        "queryFrequency": rule["queryFrequency"],
+        "queryPeriod": rule["queryPeriod"],
+        "triggerOperator": normalize_trigger_operator(rule["triggerOperator"]),
+        "triggerThreshold": rule["triggerThreshold"],
+        "suppressionDuration": rule.get("suppressionDuration", "PT1H"),
+        "suppressionEnabled": rule.get("suppressionEnabled", False),
+        "tactics": rule.get("tactics", []),
+        "techniques": techniques,
+        "subTechniques": sub_techniques,
+        "customDetails": rule.get("customDetails", {}),
+        "alertDetailsOverride": rule.get("alertDetailsOverride", {}),
+        "eventGroupingSettings": rule.get(
+            "eventGroupingSettings", {"aggregationKind": "SingleAlert"}
+        ),
+        "incidentConfiguration": rule.get(
+            "incidentConfiguration", {"createIncident": True}
+        ),
     }
+
+    # The API rejects an empty list (min length 1) - only include the field
+    # at all if the rule actually defines at least one entity mapping.
+    entity_mappings = rule.get("entityMappings", [])
+    if entity_mappings:
+        properties["entityMappings"] = entity_mappings
+
+    return {"kind": "Scheduled", "properties": properties}
 
 
 def deploy_rule(filepath: str) -> bool:
