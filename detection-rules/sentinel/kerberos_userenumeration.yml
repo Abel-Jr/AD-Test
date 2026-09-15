@@ -29,7 +29,7 @@ triggerThreshold: 0
 tactics:
   - Discovery
 relevantTechniques:
-  - T1087.002
+  - T1087 #  T1087.002 only
 
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
