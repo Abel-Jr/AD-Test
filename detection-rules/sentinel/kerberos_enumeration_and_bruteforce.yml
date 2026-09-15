@@ -11,7 +11,7 @@ description: |
   it indicates a potential coordinated attack from that identity.'
 severity: High
 status: Available
-enabled: false
+enabled: true
 
 # Data connector required for this rule to run
 requiredDataConnectors:
