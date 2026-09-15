@@ -69,11 +69,11 @@ query: |
   | project TimeGenerated = TimeB, AlertA, AlertB, TimeA, TimeB
 
 # Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
-entityMappings:
-  - entityType: IP
-    fieldMappings:
-      - identifier: Address
-        columnName: IpAddress
+#entityMappings:
+#  - entityType: IP
+#    fieldMappings:
+#      - identifier: Address
+#        columnName: IpAddress
 
 # Extra context shown in the alert, not tied to an entity
 #customDetails:
@@ -98,9 +98,8 @@ incidentConfiguration:
     enabled: true
     reopenClosedIncident: false
     lookbackDuration: PT5H
-    matchingMethod: Selected
-    groupByEntities:
-      - IP
+    matchingMethod: AnyAlert
+    groupByEntities: []
     groupByAlertDetails: []
 
 suppressionDuration: PT1H
