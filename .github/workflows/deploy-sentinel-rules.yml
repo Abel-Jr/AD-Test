@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'detection-rules/sentinel/**'
+      - 'deploy_rules.py'
   workflow_dispatch:
 
 jobs:

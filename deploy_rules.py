@@ -48,6 +48,26 @@ def normalize_trigger_operator(value: str) -> str:
     return TRIGGER_OPERATOR_MAP.get(value.lower(), value)
 
 
+def split_techniques(raw_techniques: list) -> tuple:
+    """
+    The API wants two separate fields:
+    - techniques: main technique only, format T#### (e.g. T1110)
+    - subTechniques: full code with sub-technique, format T####.### (e.g. T1110.003)
+    A rule with only "T1110" has no sub-technique to report.
+    """
+    techniques = set()
+    sub_techniques = []
+
+    for code in raw_techniques:
+        code = code.strip()
+        main_technique = code.split(".")[0]
+        techniques.add(main_technique)
+        if "." in code:
+            sub_techniques.append(code)
+
+    return sorted(techniques), sorted(sub_techniques)
+
+
 def build_url(rule_id: str) -> str:
     return (
         f"https://management.azure.com/subscriptions/{SUBSCRIPTION_ID}"
@@ -60,6 +80,8 @@ def build_url(rule_id: str) -> str:
 
 def build_body(rule: dict) -> dict:
     """Maps our YAML schema onto the actual Sentinel REST API schema."""
+    techniques, sub_techniques = split_techniques(rule.get("relevantTechniques", []))
+
     return {
         "kind": "Scheduled",
         "properties": {
@@ -75,7 +97,8 @@ def build_body(rule: dict) -> dict:
             "suppressionDuration": rule.get("suppressionDuration", "PT1H"),
             "suppressionEnabled": rule.get("suppressionEnabled", False),
             "tactics": rule.get("tactics", []),
-            "techniques": rule.get("relevantTechniques", []),
+            "techniques": techniques,
+            "subTechniques": sub_techniques,
             "entityMappings": rule.get("entityMappings", []),
             "customDetails": rule.get("customDetails", {}),
             "alertDetailsOverride": rule.get("alertDetailsOverride", {}),

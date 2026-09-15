@@ -33,6 +33,8 @@ relevantTechniques:
   - T1110.001
   - T1087.002
 
+
+
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
