@@ -87,8 +87,12 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Kerberos enumeration and bruteforce detected from {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} tried to perform kerberos enumeration and bruteforce in 10 minutes"
+  alertDisplayNameFormat: "Kerberos enumeration and bruteforce detected"
+  alertDescriptionFormat: "kerberos enumeration and bruteforce have been performed in 10 minutes"
+
+  #alertDisplayNameFormat: "Kerberos enumeration and bruteforce detected from {{IpAddress}}"
+  #alertDescriptionFormat: "IP {{IpAddress}} tried to perform kerberos enumeration and bruteforce in 10 minutes"
+
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
