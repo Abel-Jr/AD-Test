@@ -14,40 +14,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install required modules
-        shell: pwsh
-        run: |
-          Install-Module -Name powershell-yaml -Force -Scope CurrentUser
-          Install-Module -Name Az.Accounts -Force -Scope CurrentUser
-          Install-Module -Name AzSentinel -Force -Scope CurrentUser
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy rules to Sentinel
-        shell: pwsh
-        run: |
-          Import-Module AzSentinel
-          Import-Module Az.Accounts
-          Import-Module powershell-yaml
+      - name: Install PyYAML
+        run: pip install pyyaml --break-system-packages
 
-          $creds = '${{ secrets.AZURE_CREDENTIALS }}' | ConvertFrom-Json
-          $securePassword = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
-          $credential = New-Object System.Management.Automation.PSCredential($creds.clientId, $securePassword)
-
-          Connect-AzAccount -ServicePrincipal -Credential $credential -TenantId $creds.tenantId -Subscription $creds.subscriptionId
-
-          Get-ChildItem ./detection-rules/sentinel -Filter *.yml | ForEach-Object {
-            Write-Host "Deploying rule: $($_.Name)"
-            try {
-            Import-AzSentinelAlertRule `
-              -WorkspaceName "${{ vars.SENTINEL_WORKSPACE_NAME }}" `
-              -SettingsFile $_.FullName `
-              -Confirm:$false
-              -ErrorAction Stop
-          } 
-          catch {
-              Write-Host "----- FULL ERROR DETAILS -----"
-              Write-Host $_.Exception.Message
-              Write-Host $_.ScriptStackTrace
-              Write-Host "-------------------------------"
-              throw
-          }
-          }
+      - name: Deploy rules via REST API
+        run: python3 deploy_rules.py
+        env:
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          RESOURCE_GROUP: ${{ vars.SENTINEL_RESOURCE_GROUP }}
+          WORKSPACE_NAME: ${{ vars.SENTINEL_WORKSPACE_NAME }}
