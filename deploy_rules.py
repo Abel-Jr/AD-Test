@@ -31,6 +31,22 @@ WORKSPACE_NAME = os.environ["WORKSPACE_NAME"]
 RULES_DIR = os.environ.get("RULES_DIR", "detection-rules/sentinel")
 API_VERSION = "2023-02-01"
 
+# The API wants the full PascalCase name, not the short form some tools use
+TRIGGER_OPERATOR_MAP = {
+    "gt": "GreaterThan",
+    "lt": "LessThan",
+    "eq": "Equal",
+    "ne": "NotEqual",
+    "greaterthan": "GreaterThan",
+    "lessthan": "LessThan",
+    "equal": "Equal",
+    "notequal": "NotEqual",
+}
+
+
+def normalize_trigger_operator(value: str) -> str:
+    return TRIGGER_OPERATOR_MAP.get(value.lower(), value)
+
 
 def build_url(rule_id: str) -> str:
     return (
@@ -54,7 +70,7 @@ def build_body(rule: dict) -> dict:
             "query": rule["query"],
             "queryFrequency": rule["queryFrequency"],
             "queryPeriod": rule["queryPeriod"],
-            "triggerOperator": rule["triggerOperator"],
+            "triggerOperator": normalize_trigger_operator(rule["triggerOperator"]),
             "triggerThreshold": rule["triggerThreshold"],
             "suppressionDuration": rule.get("suppressionDuration", "PT1H"),
             "suppressionEnabled": rule.get("suppressionEnabled", False),
