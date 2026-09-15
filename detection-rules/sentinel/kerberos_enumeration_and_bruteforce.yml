@@ -30,8 +30,8 @@ tactics:
   - CredentialAccess
   - Discovery
 relevantTechniques:
-  - T1110   #  T1110.001
-  - T1087   # T1087.002
+  - T1110.001
+  - T1087.002
 
 
 
