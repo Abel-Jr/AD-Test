@@ -61,7 +61,7 @@ entityMappings:
         columnName: TargetUserName
 # Extra context shown in the alert, not tied to an entity
 customDetails:
-  DistinctServicesCount: DistinctServices
+  ServicesCount: DistinctServices
   TargetedServices: Service
   TicketEncryption: TicketEncryptionType
 
