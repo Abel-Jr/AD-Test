@@ -4,8 +4,8 @@ name: "User enumeration and bruteforce attempts targetting kerberos"
 description: |
   'This rule is designed to detect a combination of kerberos enumeration and bruteforce attempts, which may indicate a coordinated attack
   The detection is based on analyzing alerts from two other rules : 
-  - "Kerberos Enumeration attempts" Analytics rule ID : d168ec65-a810-48e3-a7a5-b7f380ee6a12
-  - "Kerberos Bruteforce attempts" Analytics rule ID :  437e7f90-2516-43b2-a5ef-97cbceb45e32
+  - "Kerberos Enumeration attempts" Analytics rule ID : 5276f0da-0e92-4eee-81df-6f9831f12d8a
+  - "Kerberos Bruteforce attempts" Analytics rule ID :  8be1f93a-d707-46dd-91b6-a7dc5f881bf0
 
   If both types of alerts are detected for the same ip address within a 15-minute window, 
   it indicates a potential coordinated attack from that identity.'
@@ -38,11 +38,10 @@ relevantTechniques:
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
-  let RuleA = "150cfa1b-99b5-4a09-8167-17c946a395c7";
-  let RuleB = "437e7f90-2516-43b2-a5ef-97cbceb45e32";
+  let RuleA = "5276f0da-0e92-4eee-81df-6f9831f12d8a";
+  let RuleB = "8be1f93a-d707-46dd-91b6-a7dc5f881bf0";
   let CorrelationWindow = 30m;
-
-  let Alerts =
+  let AlertsA =
     SecurityAlert
     | where TimeGenerated >= ago(60m)
     | extend Properties = tostring(ExtendedProperties)
@@ -50,31 +49,24 @@ query: |
         @'"Analytic Rule Ids".*?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
         1,
         Properties
-    );
-
-  let AlertsA =
-    Alerts
+    )
     | where AnalyticRuleId == RuleA
-    | project
-        TimeA = TimeGenerated,
-        AlertA = SystemAlertId;
-
+    | project TimeA = TimeGenerated, AlertA = SystemAlertId, JoinKey = 1;
   let AlertsB =
-    Alerts
+    SecurityAlert
+    | where TimeGenerated >= ago(60m)
+    | extend Properties = tostring(ExtendedProperties)
+    | extend AnalyticRuleId = extract(
+        @'"Analytic Rule Ids".*?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+        1,
+        Properties
+    )
     | where AnalyticRuleId == RuleB
-    | project
-        TimeB = TimeGenerated,
-        AlertB = SystemAlertId;
-
+    | project TimeB = TimeGenerated, AlertB = SystemAlertId, JoinKey = 1;
   AlertsA
-  | join kind=inner AlertsB on 1 == 1
+  | join kind=inner AlertsB on JoinKey
   | where TimeB between (TimeA .. TimeA + CorrelationWindow)
-  | project
-    TimeGenerated = TimeB,
-    AlertA,
-    AlertB,
-    TimeA,
-    TimeB
+  | project TimeGenerated = TimeB, AlertA, AlertB, TimeA, TimeB
 
 # Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
 entityMappings:
