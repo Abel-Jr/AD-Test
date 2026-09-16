@@ -29,7 +29,7 @@ relevantTechniques:
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID == 4771
+  | where EventID == 4771 and not(TargetUserName endswith "$") and not(TargetUserName=="")
   | extend EventDataStr = tostring(EventData)
   | extend Status              = extract(@'<Data Name="Status">(.*?)</Data>', 1, EventDataStr)
   | extend TargetUserName      = extract(@'<Data Name="TargetUserName">(.*?)</Data>', 1, EventDataStr)
