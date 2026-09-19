@@ -40,8 +40,8 @@ query: |
     and not(SubjectUserName endswith "$")
   | summarize
       FailedAttempts = count(),
-      DistinctUsers = dcount(Properties),
-      by SubjectUserName, SubjectLogonId ,bin(TimeGenerated, 20m)
+      DistinctUsers = dcount(Properties)
+      by SubjectUserName,SubjectLogonId ,bin(TimeGenerated, 20m)
 
 # Maps the SubjectUserName column directly to Sentinel's Account entity - no extend needed
 entityMappings:

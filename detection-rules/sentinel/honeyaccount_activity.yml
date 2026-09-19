@@ -56,8 +56,8 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Honeyaccount activity detected from {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} showed activity on a honeyaccount. Might be a sign of a scanning activity on the domain."
+  alertDisplayNameFormat: "User {{SubjectUserName}} showed honeyaccount activity on the domain in the last 25 minutes"
+  alertDescriptionFormat: "Honeyaccount activity has been performed by {{SubjectUserName}}. Might be a sign of a scanning activity on the domain."
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
