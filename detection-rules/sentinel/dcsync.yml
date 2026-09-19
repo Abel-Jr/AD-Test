@@ -1,0 +1,81 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: 6071bce1-bf0a-4d40-931e-2dd70dd8cbfa
+name: "DCSync pattern activity"
+description: |
+  'Detects a DCSync pattern, based on the replication process of the domain controller. 
+  The DCSync attack is a technique used by attackers to replicate the contents of the Active Directory database, 
+  including password hashes, from a domain controller to a compromised machine.
+  
+  The detection is based on the presence of specific properties in the Security : 
+  - 1131f6aa-9c07-11d1-f79f-00c04fc2dcd2 : Replicating Directory Changes 
+  - 1131f6ad-9c07-11d1-f79f-00c04fc2dcd2 : Replicating Directory Changes All
+  - 89e95b76-444d-4c62-991a-7fac0dd7475d : Replicating Directory Changes Schema
+severity: High
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 20 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT20M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - Discovery
+relevantTechniques:
+  - T1087.002 
+
+# KQL query - IpAddress is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  SecurityEvent
+  | where EventID == 4662 and Properties has_any ("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2", "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2","89e95b76-444d-4c62-991a-7fac0dd7475d")
+    and not(SubjectUserName endswith "$")
+  | summarize
+      FailedAttempts = count(),
+      DistinctUsers = dcount(Properties),
+      by SubjectUserName, SubjectLogonId ,bin(TimeGenerated, 20m)
+
+# Maps the SubjectUserName column directly to Sentinel's Account entity - no extend needed
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: SubjectUserName
+
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  Id: SubjectLogonId
+
+# One alert per matching row (per Account), not one alert bundling all Accounts together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "DCSync attack has been pattern has been identify and performed by {{SubjectUserName}}"
+  alertDescriptionFormat: "User {{SubjectUserName}} showed DCSync pattern on the domain in the last 20 minutes"
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - IP
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []
