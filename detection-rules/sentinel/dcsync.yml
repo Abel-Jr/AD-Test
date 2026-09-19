@@ -73,7 +73,7 @@ incidentConfiguration:
     lookbackDuration: PT5H
     matchingMethod: Selected
     groupByEntities:
-      - IP
+      - Account
     groupByAlertDetails: []
 
 suppressionDuration: PT1H
