@@ -5,8 +5,8 @@ description: |
   'Detects an activity on a honeyaccount, which is a user account created for the purpose of detecting malicious activity.  
   A honeyaccount is usually not used by any legitimate user, so any activity on it is suspicious.
 
-  Might be a sign of a active directory scanning.
-  Event ID with 4662 log and the GUID {HONEYACCOUNT_GUID}.'
+  Might be a sign of a active directory scanning. My honeyaccount is "svc-sqladmin" in my lab (OU : Managed Service Accounts).
+  Event ID with 4662 log and the GUID {3c6529c3-6a6f-44eb-b405-01262df81910}.'
 severity: High
 status: Available
 enabled: true
@@ -17,10 +17,10 @@ requiredDataConnectors:
     dataTypes:
       - SecurityEvent
 
-# Runs every 20 minutes, analyzing the last 20 minutes of data
+# Runs every 25 minutes, analyzing the last 25 minutes of data
 # (matches the bin(TimeGenerated, 10m) used in the query)
-queryFrequency: PT20M
-queryPeriod: PT20M
+queryFrequency: PT25M
+queryPeriod: PT25M
 triggerOperator: gt
 triggerThreshold: 0
 
@@ -33,29 +33,24 @@ relevantTechniques:
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID == 4662
+  | where EventID == 4662 and not(SubjectUserName endswith "$") and ObjectName contains "3c6529c3-6a6f-44eb-b405-01262df81910"
   | summarize
-      FailedAttempts = count(),
-      DistinctUsers = dcount(TargetUserName),
-      Users = make_set(TargetUserName, 20)
-      by IpAddress, bin(TimeGenerated, 10m)
-  | where DistinctUsers >= 25
-  | order by DistinctUsers desc
+      count() by  SubjectUserName, SubjectLogonId, bin(TimeGenerated, 25m)
 
-# Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
+# Maps the SubjectUserName column directly to Sentinel's Account entity - no extend needed
 entityMappings:
-  - entityType: IP
+  - entityType: Account
     fieldMappings:
-      - identifier: Address
-        columnName: IpAddress
+      - identifier: Name
+        columnName: SubjectUserName
 
 # Extra context shown in the alert, not tied to an entity
-customDetails:
-  FailedAttemptsCount: FailedAttempts
-  DistinctUsersCount: DistinctUsers
-  TargetedUsers: Users
+#customDetails:
+#  FailedAttemptsCount: FailedAttempts
+#  DistinctUsersCount: DistinctUsers
+#  TargetedUsers: Users
 
-# One alert per matching row (per IP), not one alert bundling all IPs together
+# One alert per matching row (per Account), not one alert bundling all Accounts together
 eventGroupingSettings:
   aggregationKind: AlertPerResult
 
