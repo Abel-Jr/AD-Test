@@ -1,0 +1,82 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: ca4ba227-1fd4-4397-8f6c-b4ca92f4cc0c
+name: "Honeyaccount activity"
+description: |
+  'Detects an activity on a honeyaccount, which is a user account created for the purpose of detecting malicious activity.  
+  A honeyaccount is usually not used by any legitimate user, so any activity on it is suspicious.
+
+  Might be a sign of a active directory scanning.
+  Event ID with 4662 log and the GUID {HONEYACCOUNT_GUID}.'
+severity: High
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 20 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT20M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - Discovery
+relevantTechniques:
+  - T1087.002 
+
+# KQL query - IpAddress is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  SecurityEvent
+  | where EventID == 4662
+  | summarize
+      FailedAttempts = count(),
+      DistinctUsers = dcount(TargetUserName),
+      Users = make_set(TargetUserName, 20)
+      by IpAddress, bin(TimeGenerated, 10m)
+  | where DistinctUsers >= 25
+  | order by DistinctUsers desc
+
+# Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
+entityMappings:
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: IpAddress
+
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  FailedAttemptsCount: FailedAttempts
+  DistinctUsersCount: DistinctUsers
+  TargetedUsers: Users
+
+# One alert per matching row (per IP), not one alert bundling all IPs together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "Honeyaccount activity detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} showed activity on a honeyaccount. Might be a sign of a scanning activity on the domain."
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - IP
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []
