@@ -38,7 +38,7 @@ query: |
    by IpAddress, SubjectUserName, SubjectLogonId, bin(TimeGenerated, 15m)
   | where share > 2
 
-# Maps the IpAddress column directly to Sentinel's IP entity - no extend needed
+# Maps the IpAddress and SubjectUserName columns directly to Sentinel's IP and Account entities - no extend needed
 entityMappings:
   - entityType: IP
     fieldMappings:
@@ -54,7 +54,7 @@ customDetails:
   DistinctShareCount: share
   TargetedShares: shares
 
-# One alert per matching row (per IP), not one alert bundling all IPs together
+# One alert per matching row (per IP and Account), not one alert bundling all IPs together
 eventGroupingSettings:
   aggregationKind: AlertPerResult
 
