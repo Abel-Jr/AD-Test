@@ -1,10 +1,8 @@
 # Unique rule ID - generate with `uuidgen`, never reuse across rules
-id: a43f3b12-bc94-44f5-a25e-14bd2b143644
-name: "Potential Network enumeration"
+id: bd2d2282-f7cc-4b03-9e28-476865086dba
+name: "Bruteforce attempts targetting either smb, ldap or ntlm protocols"
 description: |
-  'Detect enumeration on all shares throough Event ID 5140, 5145 (network share access). 
-  A user accessing at least 3 distinct shares from the same machine is considered suspicious. 
-  This technique is used by tools such as nxc, smbclient, or enum4linux to map accessible resources on the network.'
+  'Detects multiple failed authentication attempts on a single account via event 4625.'
 severity: Low
 status: Available
 enabled: true
@@ -15,30 +13,29 @@ requiredDataConnectors:
     dataTypes:
       - SecurityEvent
 
-# Runs every 15 minutes, analyzing the last 20 minutes of data
+# Runs every 10 minutes, analyzing the last 10 minutes of data
 # (matches the bin(TimeGenerated, 10m) used in the query)
-queryFrequency: PT15M
-queryPeriod: PT20M
+queryFrequency: PT10M
+queryPeriod: PT10M
 triggerOperator: gt
 triggerThreshold: 0
 
 tactics:
-  - Discovery
+  - CredentialAccess
 relevantTechniques:
-  - T1135
+  - T1110.001
 
 # KQL query - IpAddress is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
-  | where EventID in (5145,5140) and not (SubjectUserName endswith "$")
+  | where EventID == 4625 and not(TargetUserName endswith "$") and not(TargetUserName=="")
   | summarize 
-   share = dcount(ShareName),
-   shares = make_set(ShareName, 5)
-   by IpAddress, SubjectUserName, SubjectLogonId, bin(TimeGenerated, 15m)
-  | where share > 2
+     Failure= count()
+     by IpAddress, TargetUserName, Status, SubStatus, bin(TimeGenerated, 15m)
+  | where Failure >= 7
 
-# Maps the IpAddress and SubjectUserName columns directly to Sentinel's IP and Account entities - no extend needed
+# Maps the IpAddress and TargetUserName columns directly to Sentinel's IP and Account entities - no extend needed
 entityMappings:
   - entityType: IP
     fieldMappings:
@@ -47,12 +44,12 @@ entityMappings:
   - entityType: Account
     fieldMappings:
       - identifier: Name
-        columnName: SubjectUserName    
+        columnName: TargetUserName
 
 # Extra context shown in the alert, not tied to an entity
 customDetails:
-  DistinctShareCount: share
-  TargetedShares: shares
+  StatusCode: Status
+  SubStatus: SubStatus
 
 # One alert per matching row (per IP and Account), not one alert bundling all IPs together
 eventGroupingSettings:
@@ -60,8 +57,8 @@ eventGroupingSettings:
 
 # Custom alert title/description using the real column name
 alertDetailsOverride:
-  alertDisplayNameFormat: "Network enumeration detected from {{IpAddress}}"
-  alertDescriptionFormat: "IP {{IpAddress}} accessed multiple distinct shares in 10 minutes"
+  alertDisplayNameFormat: "Bruteforce attempts targetting either smb, ldap or ntlm protocol detected from {{IpAddress}}"
+  alertDescriptionFormat: "IP {{IpAddress}} tried to authenticate to many times in 10 minutes"
 
 # Auto-create incidents, and merge repeated alerts from the same IP
 # into a single incident instead of spawning a new one each time
@@ -73,7 +70,7 @@ incidentConfiguration:
     lookbackDuration: PT5H
     matchingMethod: Selected
     groupByEntities:
-      - IP
+      - Account
     groupByAlertDetails: []
 
 suppressionDuration: PT1H

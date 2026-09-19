@@ -1,0 +1,119 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: d4b221dd-f3a7-4693-b811-29a272a7c616
+name: "BloodHound Enumeration with all method"
+description: |
+  'Detects an Active Directory enumeration attempt via SAM/SAMR pipes, characteristic of tools such as BloodHound, 
+  CrackMapExec, or Impacket.
+
+  The rule correlates four distinct event types within the same session: IPC$ access (5140), samr pipe access (5145),  
+  SAM handle opening (4661), and enumeration of sensitive local groups (4799) targeting the following SIDs:
+
+  S-1-5-32-544 (Administrators)
+  S-1-5-32-555 (Remote Desktop Users)
+  S-1-5-32-562 (Distributed COM Users)
+  S-1-5-32-580 (Network Configuration Operators)
+
+  An alert is triggered only if all four event types are present within the same session and a 5-minute window'
+severity: High
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 20 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT20M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - Discovery
+relevantTechniques:
+  - T1087.002
+
+# KQL query - IpAddress is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  //branched query to detect all four event types in the same session and time window
+  let branch1 = 
+  SecurityEvent
+  | where EventID == 4799 and TargetSid has_any ( "S-1-5-32-544","S-1-5-32-555","S-1-5-32-562","S-1-5-32-580")
+  | summarize dis = dcount(TargetSid) by SubjectUserName, SubjectLogonId
+  | where dis >= 4;
+
+  //branched query to detect share access to IPC$
+  let branch2 =
+  SecurityEvent
+  | where EventID == 5140 and ShareName == "\\\\*\\IPC$"
+  | project SubjectUserName, SubjectLogonId;
+
+  //branched query to detect pipe access
+  let branch3 =
+  SecurityEvent
+  | where EventID == 5145 and RelativeTargetName has_any ("samr", "lsarpc", "srvsvc")
+  | summarize TargetName = dcount(RelativeTargetName) by SubjectUserName, SubjectLogonId
+  | where TargetName >= 2;
+
+  //branched query to detect SAM handle opening
+  let branch4 =
+  SecurityEvent
+  | where EventID == 4661 and ObjectServer == "Security Account Manager" and ObjectType == "SAM_ALIAS" and not(SubjectUserName endswith "$")
+  | project SubjectUserName, SubjectLogonId;
+
+  // Branch 1 only = alert
+  let alert_branch1 =
+    branch1
+    | project SubjectUserName, SubjectLogonId, AlertType = "GroupEnumeration";
+
+  // Branch 1 + 2 + 3 + 4 = alert
+  let alert_all =
+    branch1
+    | join kind=inner branch2 on SubjectUserName, SubjectLogonId
+    | join kind=inner branch3 on SubjectUserName, SubjectLogonId
+    | join kind=inner branch4 on SubjectUserName, SubjectLogonId
+    | project SubjectUserName, SubjectLogonId, AlertType = "GroupEnumerationWithAllMethods";
+
+  union alert_branch1, alert_all
+
+# Maps the SubjectUserName column directly to Sentinel's Account entity - no extend needed
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: SubjectUserName
+
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  Id: SubjectLogonId
+  AlertType: AlertType
+
+# One alert per matching row (per Account), not one alert bundling all Accounts together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "Potential BloodHound Enumeration from {{SubjectUserName}}"
+  alertDescriptionFormat: "User {{SubjectUserName}} tried to enumerate sensitive groups in 10 minutes"
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - Account
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []
