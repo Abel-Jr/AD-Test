@@ -7,7 +7,7 @@ description: |
 
   Might be a sign of a active directory scanning. My honeyaccount is "svc-sqladmin" in my lab (OU : Managed Service Accounts).
   Event ID with 4662 log and the GUID {3c6529c3-6a6f-44eb-b405-01262df81910}.'
-severity: High
+severity: Medium
 status: Available
 enabled: true
 
@@ -29,7 +29,7 @@ tactics:
 relevantTechniques:
   - T1087.002 
 
-# KQL query - IpAddress is kept as an output column automatically
+# KQL query - SubjectUserName is kept as an output column automatically
 # because it's part of the "by" clause in summarize
 query: |
   SecurityEvent
