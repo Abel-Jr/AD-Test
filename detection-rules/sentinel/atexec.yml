@@ -24,7 +24,7 @@ triggerOperator: gt
 triggerThreshold: 0
 
 tactics:
-  - LateralMovement
+  - Execution
 relevantTechniques:
   - T1053.005
 
