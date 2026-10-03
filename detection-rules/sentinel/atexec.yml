@@ -1,0 +1,96 @@
+# Unique rule ID - generate with `uuidgen`, never reuse across rules
+id: 3859dc52-13ea-4224-ac27-3076ac6bc973
+name: "ATExec attempts"
+description: |
+  'Detects a temporary task creation through Event ID 4698 (A scheduled task was created). 
+  The task name is often a random string, and the service name is often "ATExec".
+  Follow by the execution of the task through Event ID 4699 (A scheduled task was deleted) on the same session.
+  This technique is used by tools such as atexec from Impacket.'
+severity: High
+status: Available
+enabled: true
+
+# Data connector required for this rule to run
+requiredDataConnectors:
+  - connectorId: SecurityEvents
+    dataTypes:
+      - SecurityEvent
+
+# Runs every 15 minutes, analyzing the last 20 minutes of data
+# (matches the bin(TimeGenerated, 10m) used in the query)
+queryFrequency: PT15M
+queryPeriod: PT20M
+triggerOperator: gt
+triggerThreshold: 0
+
+tactics:
+  - LateralMovement
+relevantTechniques:
+  - T1053.005
+
+# KQL query - Computer is kept as an output column automatically
+# because it's part of the "by" clause in summarize
+query: |
+  let creation = SecurityEvent
+    | where EventID == 4698
+    | extend EventDataStr = tostring(EventData)
+    | extend SubjectUserName = extract(@'<Data Name="SubjectUserName">(.*?)</Data>', 1, EventDataStr)
+    | extend SubjectLogonId              = extract(@'<Data Name="SubjectLogonId">(.*?)</Data>', 1, EventDataStr)
+    | extend TaskName         = extract(@'<Data Name="TaskName">(.*?)</Data>', 1, EventDataStr)
+    | where TaskName matches regex @"^\\[A-Za-z0-9]{8,9}$"
+    | extend RandName = substring(TaskName, 1), Source = "creation"
+    | project SubjectUserName, SubjectLogonId, TaskName, RandName, Computer;
+  let deletion = SecurityEvent
+    | where EventID == 4699
+    | extend EventDataStr = tostring(EventData)
+    | extend SubjectUserName = extract(@'<Data Name="SubjectUserName">(.*?)</Data>', 1, EventDataStr)
+    | extend SubjectLogonId              = extract(@'<Data Name="SubjectLogonId">(.*?)</Data>', 1, EventDataStr)
+    | extend TaskName         = extract(@'<Data Name="TaskName">(.*?)</Data>', 1, EventDataStr)
+    | where TaskName matches regex @"^\\[A-Za-z0-9]{8,9}$"
+    | extend RandName = substring(TaskName, 1), Source = "deletion"
+    | project SubjectUserName, SubjectLogonId, TaskName, RandName, Computer;
+  let commande = SecurityEvent
+    | where EventID == 4688 and SubjectUserName endswith "$"
+    | where CommandLine matches regex @"(?i)\\Windows\\Temp\\[A-Za-z0-9]{8,9}\.tmp"
+    | extend RandName = extract(@"(?i)\\Windows\\Temp\\([A-Za-z0-9]{8,9})\.tmp", 1, CommandLine)
+    | project SubjectUserName, CommandLine, RandName, Computer;
+  union creation, deletion, commande
+    | summarize count() by RandName, Computer
+    | where count_ == 3
+
+# Maps the Computer column directly to Sentinel's Host entity - no extend needed
+entityMappings:
+  - entityType: Host
+    fieldMappings:
+      - identifier: Name
+        columnName: Computer
+
+# Extra context shown in the alert, not tied to an entity
+customDetails:
+  TaskName: RandName
+
+# One alert per matching row (per IP and Account), not one alert bundling all IPs together
+eventGroupingSettings:
+  aggregationKind: AlertPerResult
+
+# Custom alert title/description using the real column name
+alertDetailsOverride:
+  alertDisplayNameFormat: "ATExec attempt detected, taskname  {{RandName}} on {{Computer}}"
+  alertDescriptionFormat: "Task {{RandName}} has been created, then deleted in 10 minutes on the host {{Computer}}. This is a typical behavior of the ATExec technique."
+
+# Auto-create incidents, and merge repeated alerts from the same IP
+# into a single incident instead of spawning a new one each time
+incidentConfiguration:
+  createIncident: true
+  groupingConfiguration:
+    enabled: true
+    reopenClosedIncident: false
+    lookbackDuration: PT5H
+    matchingMethod: Selected
+    groupByEntities:
+      - Host
+    groupByAlertDetails: []
+
+suppressionDuration: PT1H
+suppressionEnabled: false
+tags: []
