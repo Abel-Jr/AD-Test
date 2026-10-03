@@ -1,5 +1,5 @@
 # Unique rule ID - generate with `uuidgen`, never reuse across rules
-id: 3859dc52-13ea-4224-ac27-3076ac6bc973
+id: dd10dec6-45c0-472d-8419-b8675853fe2c
 name: "ATExec attempts"
 description: |
   'Detects a temporary task creation through Event ID 4698 (A scheduled task was created). 
