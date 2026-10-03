@@ -62,7 +62,7 @@ query: |
 entityMappings:
   - entityType: Host
     fieldMappings:
-      - identifier: Name
+      - identifier: HostName
         columnName: Computer
 
 # Extra context shown in the alert, not tied to an entity
