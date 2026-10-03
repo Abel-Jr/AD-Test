@@ -54,7 +54,7 @@ query: |
 entityMappings:
   - entityType: Account
     fieldMappings:
-      - identifier: HostName
+      - identifier: Name
         columnName: SubjectUserName
   - entityType: Host
     fieldMappings:
